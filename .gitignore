@@ -1,3 +1,6 @@
 thinking*.md
 tmp/
 AIとのやり取り
+.env
+.env.*.local
+test.http

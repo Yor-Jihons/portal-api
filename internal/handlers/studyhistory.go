@@ -31,5 +31,13 @@ func GetStudyHistories(c *gin.Context) {
 
 // POSTメソッドの場合(本来はデータを追加する)
 func CreateStudyHistory(c *gin.Context) {
+	var input models.StudyHistory
+
+	// JSONを構造体に流し込む
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
 	c.JSON(http.StatusCreated, gin.H{"message": "history created"})
 }

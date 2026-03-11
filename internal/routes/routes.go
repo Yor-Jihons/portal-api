@@ -8,18 +8,11 @@ import (
 func SetupRouter() *gin.Engine {
 	r := gin.Default()
 
-	// Person関連のルート
-	personGroup := r.Group("/persons")
+	// study-histories関連のルート
+	personGroup := r.Group("/study-histories")
 	{
-		personGroup.GET("", handlers.GetPersons)
-		personGroup.POST("", handlers.CreatePerson)
-	}
-
-	// Product関連のルート
-	productGroup := r.Group("/products")
-	{
-		productGroup.GET("", handlers.GetProducts)
-		productGroup.POST("", handlers.CreateProduct)
+		personGroup.GET("", handlers.GetStudyHistories)
+		personGroup.POST("", handlers.CreateStudyHistory)
 	}
 
 	return r

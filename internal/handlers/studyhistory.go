@@ -18,7 +18,7 @@ func GetStudyHistories(c *gin.Context) {
 			Content:     "ディレクトリ構造について学んだ",
 			Categories:  []string{"Go言語", "フレームワーク"},
 			Date:        "2026/03/11",
-			Time:        models.StudyTime{Hours: 0, Min: 30},
+			Time:        "1h30min",
 		},
 	}
 

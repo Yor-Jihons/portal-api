@@ -1,0 +1,21 @@
+-- 1. カテゴリテーブル
+CREATE TABLE categories (
+    id SERIAL PRIMARY KEY,
+    category_name TEXT NOT NULL UNIQUE
+);
+
+-- 2. 学習履歴テーブル
+CREATE TABLE study_logs (
+    id SERIAL PRIMARY KEY,
+    description TEXT NOT NULL,
+    content TEXT,
+    date DATE NOT NULL DEFAULT CURRENT_DATE,
+    time TEXT NOT NULL -- '1h40min' などの文字列
+);
+
+-- 3. 中間テーブル (多対多の紐付け)
+CREATE TABLE study_log_categories (
+    study_log_id INTEGER REFERENCES study_logs(id) ON DELETE CASCADE,
+    category_id INTEGER REFERENCES categories(id) ON DELETE CASCADE,
+    PRIMARY KEY (study_log_id, category_id)
+);

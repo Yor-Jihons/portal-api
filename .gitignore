@@ -4,4 +4,4 @@ AIとのやり取り
 .env
 .env.*.local
 test.http
-sample.db
+*.db

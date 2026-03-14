@@ -7,12 +7,19 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/Yor-Jihons/portal-api/internal/db"
 	"github.com/Yor-Jihons/portal-api/internal/models"
 )
 
+type StudyHistoryHandler struct {
+	DB *sql.DB
+}
+
+func NewStudyHistoryHandler(db *sql.DB) *StudyHistoryHandler {
+	return &StudyHistoryHandler{DB: db}
+}
+
 // GETメソッドの場合
-func GetStudyHistories(c *gin.Context) {
+func (h *StudyHistoryHandler) GetStudyHistories(c *gin.Context) {
 	// 1. SQLクエリ（GROUP_CONCAT でカテゴリをカンマ区切りで取得）
 	query := `
 		SELECT s.id, s.description, s.content, s.date, s.time, 
@@ -24,7 +31,7 @@ func GetStudyHistories(c *gin.Context) {
 		ORDER BY s.date DESC
 	`
 
-	rows, err := db.DB.Query(query)
+	rows, err := h.DB.Query(query)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch histories: " + err.Error()})
 		return
@@ -35,10 +42,10 @@ func GetStudyHistories(c *gin.Context) {
 
 	// 2. 取得した結果を1行ずつ処理
 	for rows.Next() {
-		var h models.StudyHistory
+		var h_data models.StudyHistory
 		var categoryStr sql.NullString // カテゴリが0個の場合を考慮して NullString を使う
 
-		err := rows.Scan(&h.ID, &h.Description, &h.Content, &h.Date, &h.Time, &categoryStr)
+		err := rows.Scan(&h_data.ID, &h_data.Description, &h_data.Content, &h_data.Date, &h_data.Time, &categoryStr)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to scan history: " + err.Error()})
 			return
@@ -46,12 +53,12 @@ func GetStudyHistories(c *gin.Context) {
 
 		// カンマ区切りの文字列をスライスに変換
 		if categoryStr.Valid && categoryStr.String != "" {
-			h.Categories = strings.Split(categoryStr.String, ",")
+			h_data.Categories = strings.Split(categoryStr.String, ",")
 		} else {
-			h.Categories = []string{} // 空配列をセット
+			h_data.Categories = []string{} // 空配列をセット
 		}
 
-		histories = append(histories, h)
+		histories = append(histories, h_data)
 	}
 
 	// 3. レスポンスの返却
@@ -63,7 +70,7 @@ func GetStudyHistories(c *gin.Context) {
 }
 
 // POSTメソッドの場合(データを追加する)
-func CreateStudyHistory(c *gin.Context) {
+func (h *StudyHistoryHandler) CreateStudyHistory(c *gin.Context) {
 	var input models.StudyHistory
 
 	// 1. JSONのバリデーション
@@ -73,7 +80,7 @@ func CreateStudyHistory(c *gin.Context) {
 	}
 
 	// トランザクション開始
-	tx, err := db.DB.Begin()
+	tx, err := h.DB.Begin()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to start transaction"})
 		return

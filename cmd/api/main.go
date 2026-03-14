@@ -10,24 +10,24 @@ import (
 )
 
 func main() {
-	// .envファイルを読み込む (ファイルがなくてもエラーにしない)
+	// .envファイルを読み込む
 	err1 := godotenv.Load()
 	if err1 != nil {
-		// もしカレントディレクトリで見つからない場合、1つ上の階層も探してみる (air対策)
 		_ = godotenv.Load("../../.env")
 	}
 
-	// cmd/api/main.go の main関数内に追加
+	// DB接続
 	if err2 := db.InitDB(); err2 != nil {
 		log.Fatalf("DB接続失敗: %v", err2)
 	}
 
-	// デバッグ用：URLが空でないか確認
+	// デバッグ用
 	if os.Getenv("TURSO_DATABASE_URL") == "" {
 		log.Fatal("エラー: TURSO_DATABASE_URL が設定されていません。")
 	}
 
-	r := routes.SetupRouter()
+	// ルーターのセットアップ (DB接続を渡す)
+	r := routes.SetupRouter(db.DB)
 
 	port := os.Getenv("PORT")
 	if port == "" {

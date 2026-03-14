@@ -1,6 +1,7 @@
 package models
 
 type StudyHistory struct {
+	ID          string   `json:"id"`
 	Description string   `json:"description"`
 	Content     string   `json:"content"`
 	Categories  []string `json:"categories"`

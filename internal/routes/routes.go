@@ -1,7 +1,7 @@
-// internal/routes/routes.go
 package routes
 
 import (
+	"database/sql"
 	"time"
 
 	"github.com/Yor-Jihons/portal-api/internal/handlers"
@@ -10,25 +10,24 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func SetupRouter() *gin.Engine {
+func SetupRouter(db *sql.DB) *gin.Engine {
 	r := gin.Default()
+
+	// ハンドラーの初期化
+	studyHandler := handlers.NewStudyHistoryHandler(db)
 
 	// --- CORSの設定 ---
 	r.Use(cors.New(cors.Config{
-		// 許可するアクセス元（Next.jsのURLを指定）
 		AllowOrigins: []string{
-			"http://localhost:3000",        // ローカル開発用
-			"https://your-site.vercel.app", // 本番用（後で書き換える）
+			"http://localhost:3000",
+			"https://your-site.vercel.app",
 		},
-		// 許可するHTTPメソッド
 		AllowMethods: []string{"GET", "POST", "OPTIONS"},
-		// 許可するHTTPヘッダー
 		AllowHeaders: []string{
 			"Origin",
 			"Content-Type",
-			"X-API-KEY", // ★APIキーを送るために必須！
+			"X-API-KEY",
 		},
-		// プリフライトリクエスト（OPTIONS）の結果をキャッシュする時間
 		MaxAge: 12 * time.Hour,
 	}))
 
@@ -36,8 +35,8 @@ func SetupRouter() *gin.Engine {
 	authGroup := r.Group("/study-histories")
 	authGroup.Use(middlewares.ApiKeyAuth())
 	{
-		authGroup.GET("", handlers.GetStudyHistories)
-		authGroup.POST("", handlers.CreateStudyHistory)
+		authGroup.GET("", studyHandler.GetStudyHistories)
+		authGroup.POST("", studyHandler.CreateStudyHistory)
 	}
 
 	return r

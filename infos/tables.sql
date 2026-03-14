@@ -1,15 +1,15 @@
 -- 1. カテゴリテーブル
 CREATE TABLE categories (
-    id SERIAL PRIMARY KEY,
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
     category_name TEXT NOT NULL UNIQUE
 );
 
 -- 2. 学習履歴テーブル
 CREATE TABLE study_logs (
-    id SERIAL PRIMARY KEY,
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
     description TEXT NOT NULL,
     content TEXT,
-    date DATE NOT NULL DEFAULT CURRENT_DATE,
+    date DATE NOT NULL DEFAULT (CURRENT_DATE),
     time TEXT NOT NULL -- '1h40min' などの文字列
 );
 

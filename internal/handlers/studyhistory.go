@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	"github.com/microcosm-cc/bluemonday"
 
 	"github.com/Yor-Jihons/portal-api/internal/models"
 )
@@ -79,6 +80,11 @@ func (h *StudyHistoryHandler) CreateStudyHistory(c *gin.Context) {
 		return
 	}
 
+	// サニタイズ（XSS対策）
+	p := bluemonday.StrictPolicy()
+	input.Description = p.Sanitize(input.Description)
+	input.Content = p.Sanitize(input.Content)
+
 	// トランザクション開始
 	tx, err := h.DB.Begin()
 	if err != nil {
@@ -97,7 +103,15 @@ func (h *StudyHistoryHandler) CreateStudyHistory(c *gin.Context) {
 	}
 
 	// 3. カテゴリの処理と紐付け
-	for _, catName := range input.Categories {
+	processedCategories := make(map[string]bool)
+	for _, rawCatName := range input.Categories {
+		// カテゴリ名の正規化（空白削除、小文字化）
+		catName := strings.ToLower(strings.TrimSpace(rawCatName))
+		if catName == "" || processedCategories[catName] {
+			continue // 空文字または重複したカテゴリ名はスキップ
+		}
+		processedCategories[catName] = true
+
 		var catID int
 		// カテゴリが存在するか確認
 		err := tx.QueryRow("SELECT id FROM categories WHERE category_name = ?", catName).Scan(&catID)

@@ -21,11 +21,6 @@ func main() {
 		log.Fatalf("DB接続失敗: %v", err2)
 	}
 
-	// デバッグ用
-	if os.Getenv("TURSO_DATABASE_URL") == "" {
-		log.Fatal("エラー: TURSO_DATABASE_URL が設定されていません。")
-	}
-
 	// ルーターのセットアップ (DB接続を渡す)
 	r := routes.SetupRouter(db.DB)
 

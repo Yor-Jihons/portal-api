@@ -10,23 +10,25 @@ import (
 
 func ApiKeyAuth() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// ヘッダーからキーを取得
 		key := c.GetHeader("X-API-KEY")
 		expectedKey := os.Getenv("API_KEY")
 
-		// デバッグ用（Renderのログに表示されます）
-		// ※確認後は必ず消してください！
-		if key != expectedKey {
-			fmt.Printf("Debug: Received[%s] Expected[%s]\n", key, expectedKey)
-		}
-
-		// キーが一致しない場合は 401 Unauthorized を返して終了
-		if key == "" || key != expectedKey {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		if key == "" {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "リクエストヘッダーが空です"})
 			return
 		}
 
-		// 一致すれば次の処理（ハンドラー）へ進む
+		if key != expectedKey {
+			// 【注意】本番では消すべきですが、テストのために不一致をログに出します
+			fmt.Printf("Auth Debug: Received=[%s], Expected=[%s]\n", key, expectedKey)
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
+				"error":        "キーが一致しません",
+				"received_len": len(key),
+				"expected_len": len(expectedKey),
+			})
+			return
+		}
+
 		c.Next()
 	}
 }

@@ -2,10 +2,12 @@ package handlers
 
 import (
 	"database/sql"
+	"log/slog"
 	"net/http"
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	"github.com/microcosm-cc/bluemonday"
 
 	"github.com/Yor-Jihons/portal-api/internal/models"
 )
@@ -18,9 +20,8 @@ func NewStudyHistoryHandler(db *sql.DB) *StudyHistoryHandler {
 	return &StudyHistoryHandler{DB: db}
 }
 
-// GETメソッドの場合
+// GETメソッド: 全履歴取得
 func (h *StudyHistoryHandler) GetStudyHistories(c *gin.Context) {
-	// 1. SQLクエリ（GROUP_CONCAT でカテゴリをカンマ区切りで取得）
 	query := `
 		SELECT s.id, s.description, s.content, s.date, s.time, 
 		    GROUP_CONCAT(c.category_name, ',') as categories
@@ -33,35 +34,32 @@ func (h *StudyHistoryHandler) GetStudyHistories(c *gin.Context) {
 
 	rows, err := h.DB.Query(query)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch histories: " + err.Error()})
+		slog.Error("Failed to query histories", "error", err, "ip", c.ClientIP())
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal Server Error"})
 		return
 	}
 	defer rows.Close()
 
-	histories := []models.StudyHistory{} // nullではなく空配列を返すように初期化
-
-	// 2. 取得した結果を1行ずつ処理
+	histories := []models.StudyHistory{}
 	for rows.Next() {
 		var h_data models.StudyHistory
-		var categoryStr sql.NullString // カテゴリが0個の場合を考慮して NullString を使う
+		var categoryStr sql.NullString
 
 		err := rows.Scan(&h_data.ID, &h_data.Description, &h_data.Content, &h_data.Date, &h_data.Time, &categoryStr)
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to scan history: " + err.Error()})
+			slog.Error("Failed to scan history", "error", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal Server Error"})
 			return
 		}
 
-		// カンマ区切りの文字列をスライスに変換
 		if categoryStr.Valid && categoryStr.String != "" {
 			h_data.Categories = strings.Split(categoryStr.String, ",")
 		} else {
-			h_data.Categories = []string{} // 空配列をセット
+			h_data.Categories = []string{}
 		}
-
 		histories = append(histories, h_data)
 	}
 
-	// 3. レスポンスの返却
 	data := models.StudyHistoryResponse{
 		Status:    200,
 		Histories: histories,
@@ -69,70 +67,166 @@ func (h *StudyHistoryHandler) GetStudyHistories(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "get all histories", "data": data})
 }
 
-// POSTメソッドの場合(データを追加する)
+// POSTメソッド: 新規登録
 func (h *StudyHistoryHandler) CreateStudyHistory(c *gin.Context) {
 	var input models.StudyHistory
-
-	// 1. JSONのバリデーション
 	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		slog.Warn("Invalid input for creation", "error", err, "ip", c.ClientIP())
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
 		return
 	}
 
-	// トランザクション開始
+	// サニタイズ
+	p := bluemonday.StrictPolicy()
+	input.Description = p.Sanitize(input.Description)
+	input.Content = p.Sanitize(input.Content)
+
 	tx, err := h.DB.Begin()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to start transaction"})
+		slog.Error("Failed to start transaction", "error", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal Server Error"})
 		return
 	}
 
-	// 2. study_logs テーブルに保存
 	query := `INSERT INTO study_logs (description, content, date, time) VALUES (?, ?, ?, ?) RETURNING id`
 	var logID int
 	err = tx.QueryRow(query, input.Description, input.Content, input.Date, input.Time).Scan(&logID)
 	if err != nil {
 		tx.Rollback()
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to insert log: " + err.Error()})
+		slog.Error("Failed to insert log", "error", err, "description", input.Description)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal Server Error"})
 		return
 	}
 
-	// 3. カテゴリの処理と紐付け
-	for _, catName := range input.Categories {
-		var catID int
-		// カテゴリが存在するか確認
-		err := tx.QueryRow("SELECT id FROM categories WHERE category_name = ?", catName).Scan(&catID)
+	if err := h.syncCategories(tx, logID, input.Categories); err != nil {
+		tx.Rollback()
+		slog.Error("Failed to sync categories", "error", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal Server Error"})
+		return
+	}
 
+	if err := tx.Commit(); err != nil {
+		slog.Error("Failed to commit transaction", "error", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal Server Error"})
+		return
+	}
+
+	slog.Info("History created successfully", "id", logID, "ip", c.ClientIP())
+	c.JSON(http.StatusCreated, gin.H{"message": "history created", "id": logID})
+}
+
+// PUTメソッド: 更新
+func (h *StudyHistoryHandler) UpdateStudyHistory(c *gin.Context) {
+	id := c.Param("id")
+	var input models.StudyHistory
+	if err := c.ShouldBindJSON(&input); err != nil {
+		slog.Warn("Invalid input for update", "id", id, "error", err, "ip", c.ClientIP())
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+		return
+	}
+
+	// サニタイズ
+	p := bluemonday.StrictPolicy()
+	input.Description = p.Sanitize(input.Description)
+	input.Content = p.Sanitize(input.Content)
+
+	tx, err := h.DB.Begin()
+	if err != nil {
+		slog.Error("Failed to start transaction for update", "error", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal Server Error"})
+		return
+	}
+
+	query := `UPDATE study_logs SET description = ?, content = ?, date = ?, time = ? WHERE id = ?`
+	result, err := tx.Exec(query, input.Description, input.Content, input.Date, input.Time, id)
+	if err != nil {
+		tx.Rollback()
+		slog.Error("Failed to update log", "id", id, "error", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal Server Error"})
+		return
+	}
+
+	rowsAffected, _ := result.RowsAffected()
+	if rowsAffected == 0 {
+		tx.Rollback()
+		c.JSON(http.StatusNotFound, gin.H{"error": "History not found"})
+		return
+	}
+
+	// 中間テーブルの関連を一旦削除して再登録
+	_, err = tx.Exec("DELETE FROM study_log_categories WHERE study_log_id = ?", id)
+	if err != nil {
+		tx.Rollback()
+		slog.Error("Failed to clear old categories", "id", id, "error", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal Server Error"})
+		return
+	}
+
+	if err := h.syncCategories(tx, id, input.Categories); err != nil {
+		tx.Rollback()
+		slog.Error("Failed to sync categories for update", "id", id, "error", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal Server Error"})
+		return
+	}
+
+	if err := tx.Commit(); err != nil {
+		slog.Error("Failed to commit update", "id", id, "error", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal Server Error"})
+		return
+	}
+
+	slog.Info("History updated successfully", "id", id, "ip", c.ClientIP())
+	c.JSON(http.StatusOK, gin.H{"message": "history updated"})
+}
+
+// DELETEメソッド: 削除
+func (h *StudyHistoryHandler) DeleteStudyHistory(c *gin.Context) {
+	id := c.Param("id")
+
+	result, err := h.DB.Exec("DELETE FROM study_logs WHERE id = ?", id)
+	if err != nil {
+		slog.Error("Failed to delete history", "id", id, "error", err, "ip", c.ClientIP())
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal Server Error"})
+		return
+	}
+
+	rowsAffected, _ := result.RowsAffected()
+	if rowsAffected == 0 {
+		c.JSON(http.StatusNotFound, gin.H{"error": "History not found"})
+		return
+	}
+
+	slog.Info("History deleted successfully", "id", id, "ip", c.ClientIP())
+	c.JSON(http.StatusOK, gin.H{"message": "history deleted"})
+}
+
+// syncCategories はカテゴリの同期処理（新規作成と紐付け）を行います
+func (h *StudyHistoryHandler) syncCategories(tx *sql.Tx, logID interface{}, categories []string) error {
+	processedCategories := make(map[string]bool)
+	for _, rawCatName := range categories {
+		catName := strings.ToLower(strings.TrimSpace(rawCatName))
+		if catName == "" || processedCategories[catName] {
+			continue
+		}
+		processedCategories[catName] = true
+
+		var catID int
+		err := tx.QueryRow("SELECT id FROM categories WHERE category_name = ?", catName).Scan(&catID)
 		if err != nil {
 			if err == sql.ErrNoRows {
-				// カテゴリが存在しない場合は新規作成
 				err = tx.QueryRow("INSERT INTO categories (category_name) VALUES (?) RETURNING id", catName).Scan(&catID)
 				if err != nil {
-					tx.Rollback()
-					c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create category: " + err.Error()})
-					return
+					return err
 				}
 			} else {
-				// その他のDBエラー
-				tx.Rollback()
-				c.JSON(http.StatusInternalServerError, gin.H{"error": "Database error: " + err.Error()})
-				return
+				return err
 			}
 		}
 
-		// 中間テーブルに保存
 		_, err = tx.Exec("INSERT INTO study_log_categories (study_log_id, category_id) VALUES (?, ?)", logID, catID)
 		if err != nil {
-			tx.Rollback()
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to link category: " + err.Error()})
-			return
+			return err
 		}
 	}
-
-	// コミットして確定
-	if err := tx.Commit(); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to commit transaction"})
-		return
-	}
-
-	c.JSON(http.StatusCreated, gin.H{"message": "history created", "id": logID})
+	return nil
 }

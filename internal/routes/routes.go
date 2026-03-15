@@ -13,6 +13,11 @@ import (
 func SetupRouter(db *sql.DB) *gin.Engine {
 	r := gin.Default()
 
+	// --- レート制限の設定 ---
+	// IP ごとに 1秒間に 1リクエスト、最大 5リクエストのバーストを許可
+	limiter := middlewares.NewIPRateLimiter(1, 5)
+	r.Use(middlewares.RateLimitMiddleware(limiter))
+
 	// ハンドラーの初期化
 	studyHandler := handlers.NewStudyHistoryHandler(db)
 
@@ -20,9 +25,9 @@ func SetupRouter(db *sql.DB) *gin.Engine {
 	r.Use(cors.New(cors.Config{
 		AllowOrigins: []string{
 			"http://localhost:3000",
-			"https://your-site.vercel.app",
+			"https://*.vercel.app",
 		},
-		AllowMethods: []string{"GET", "POST", "OPTIONS"},
+		AllowMethods: []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
 		AllowHeaders: []string{
 			"Origin",
 			"Content-Type",
@@ -37,6 +42,8 @@ func SetupRouter(db *sql.DB) *gin.Engine {
 	{
 		authGroup.GET("", studyHandler.GetStudyHistories)
 		authGroup.POST("", studyHandler.CreateStudyHistory)
+		authGroup.PUT("/:id", studyHandler.UpdateStudyHistory)
+		authGroup.DELETE("/:id", studyHandler.DeleteStudyHistory)
 	}
 
 	return r

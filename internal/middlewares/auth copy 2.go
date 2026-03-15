@@ -8,7 +8,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func ApiKeyAuthTmp2() gin.HandlerFunc {
+func ApiKeyAuthTmp() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// ヘッダーからキーを取得
 		key := c.GetHeader("X-API-KEY")

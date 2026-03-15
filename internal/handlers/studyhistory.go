@@ -35,7 +35,7 @@ func (h *StudyHistoryHandler) GetStudyHistories(c *gin.Context) {
 	rows, err := h.DB.Query(query)
 	if err != nil {
 		slog.Error("Failed to query histories", "error", err, "ip", c.ClientIP())
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal Server Error"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal Server Error 1"})
 		return
 	}
 	defer rows.Close()
@@ -48,7 +48,7 @@ func (h *StudyHistoryHandler) GetStudyHistories(c *gin.Context) {
 		err := rows.Scan(&h_data.ID, &h_data.Description, &h_data.Content, &h_data.Date, &h_data.Time, &categoryStr)
 		if err != nil {
 			slog.Error("Failed to scan history", "error", err)
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal Server Error"})
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal Server Error 2"})
 			return
 		}
 
@@ -84,7 +84,7 @@ func (h *StudyHistoryHandler) CreateStudyHistory(c *gin.Context) {
 	tx, err := h.DB.Begin()
 	if err != nil {
 		slog.Error("Failed to start transaction", "error", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal Server Error"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal Server Error 3"})
 		return
 	}
 
@@ -94,20 +94,20 @@ func (h *StudyHistoryHandler) CreateStudyHistory(c *gin.Context) {
 	if err != nil {
 		tx.Rollback()
 		slog.Error("Failed to insert log", "error", err, "description", input.Description)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal Server Error"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal Server Error 4"})
 		return
 	}
 
 	if err := h.syncCategories(tx, logID, input.Categories); err != nil {
 		tx.Rollback()
 		slog.Error("Failed to sync categories", "error", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal Server Error"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal Server Error 5"})
 		return
 	}
 
 	if err := tx.Commit(); err != nil {
 		slog.Error("Failed to commit transaction", "error", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal Server Error"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal Server Error 6"})
 		return
 	}
 
@@ -133,7 +133,7 @@ func (h *StudyHistoryHandler) UpdateStudyHistory(c *gin.Context) {
 	tx, err := h.DB.Begin()
 	if err != nil {
 		slog.Error("Failed to start transaction for update", "error", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal Server Error"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal Server Error 7"})
 		return
 	}
 
@@ -142,7 +142,7 @@ func (h *StudyHistoryHandler) UpdateStudyHistory(c *gin.Context) {
 	if err != nil {
 		tx.Rollback()
 		slog.Error("Failed to update log", "id", id, "error", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal Server Error"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal Server Error 8"})
 		return
 	}
 
@@ -158,20 +158,20 @@ func (h *StudyHistoryHandler) UpdateStudyHistory(c *gin.Context) {
 	if err != nil {
 		tx.Rollback()
 		slog.Error("Failed to clear old categories", "id", id, "error", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal Server Error"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal Server Error 9"})
 		return
 	}
 
 	if err := h.syncCategories(tx, id, input.Categories); err != nil {
 		tx.Rollback()
 		slog.Error("Failed to sync categories for update", "id", id, "error", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal Server Error"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal Server Error 10"})
 		return
 	}
 
 	if err := tx.Commit(); err != nil {
 		slog.Error("Failed to commit update", "id", id, "error", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal Server Error"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal Server Error 11"})
 		return
 	}
 
@@ -186,7 +186,7 @@ func (h *StudyHistoryHandler) DeleteStudyHistory(c *gin.Context) {
 	result, err := h.DB.Exec("DELETE FROM study_logs WHERE id = ?", id)
 	if err != nil {
 		slog.Error("Failed to delete history", "id", id, "error", err, "ip", c.ClientIP())
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal Server Error"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal Server Error 12"})
 		return
 	}
 

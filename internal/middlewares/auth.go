@@ -1,6 +1,7 @@
 package middlewares
 
 import (
+	"fmt"
 	"net/http"
 	"os"
 
@@ -12,6 +13,12 @@ func ApiKeyAuth() gin.HandlerFunc {
 		// ヘッダーからキーを取得
 		key := c.GetHeader("X-API-KEY")
 		expectedKey := os.Getenv("API_KEY")
+
+		// デバッグ用（Renderのログに表示されます）
+		// ※確認後は必ず消してください！
+		if key != expectedKey {
+			fmt.Printf("Debug: Received[%s] Expected[%s]\n", key, expectedKey)
+		}
 
 		// キーが一致しない場合は 401 Unauthorized を返して終了
 		if key == "" || key != expectedKey {

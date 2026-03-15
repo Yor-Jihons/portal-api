@@ -25,7 +25,7 @@ func SetupRouter(db *sql.DB) *gin.Engine {
 	r.Use(cors.New(cors.Config{
 		AllowOrigins: []string{
 			"http://localhost:3000",
-			"https://your-site.vercel.app",
+			"https://*.vercel.app",
 		},
 		AllowMethods: []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
 		AllowHeaders: []string{
@@ -35,7 +35,6 @@ func SetupRouter(db *sql.DB) *gin.Engine {
 		},
 		MaxAge: 12 * time.Hour,
 	}))
-
 
 	// ルート設定
 	authGroup := r.Group("/study-histories")

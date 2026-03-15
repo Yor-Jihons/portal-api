@@ -157,6 +157,72 @@ func TestCreateStudyHistory_CategoryNormalization(t *testing.T) {
 	assert.Equal(t, 1, totalCount)
 }
 
+func TestUpdateStudyHistory(t *testing.T) {
+	db := setupTestDB(t)
+	defer db.Close()
+	handler := NewStudyHistoryHandler(db)
+
+	// 初期データの挿入
+	_, _ = db.Exec("INSERT INTO study_logs (id, description, content, date, time) VALUES (1, 'Old Title', 'Old Content', '2024-03-14', '10:00')")
+	_, _ = db.Exec("INSERT INTO categories (id, category_name) VALUES (1, 'old-cat')")
+	_, _ = db.Exec("INSERT INTO study_log_categories (study_log_id, category_id) VALUES (1, 1)")
+
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Params = []gin.Param{{Key: "id", Value: "1"}}
+
+	// 更新用ボディ
+	body := `{"description": "New Title", "content": "New Content", "date": "2024-03-15", "time": "11:00", "categories": ["new-cat"]}`
+	c.Request = httptest.NewRequest("PUT", "/study-histories/1", strings.NewReader(body))
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	handler.UpdateStudyHistory(c)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	// DBの値が更新されているか確認
+	var desc, content, date, timeStr string
+	err := db.QueryRow("SELECT description, content, date, time FROM study_logs WHERE id = 1").Scan(&desc, &content, &date, &timeStr)
+	assert.NoError(t, err)
+	assert.Equal(t, "New Title", desc)
+	// SQLite の DATE 型は環境やドライバによって形式が異なる場合があるため、接頭辞でチェック
+	assert.True(t, strings.HasPrefix(date, "2024-03-15"), "Expected date to start with 2024-03-15, got %s", date)
+	assert.Equal(t, "11:00", timeStr)
+
+	// カテゴリが更新されているか確認
+	var catName string
+	err = db.QueryRow("SELECT c.category_name FROM categories c JOIN study_log_categories r ON c.id = r.category_id WHERE r.study_log_id = 1").Scan(&catName)
+	assert.NoError(t, err)
+	assert.Equal(t, "new-cat", catName)
+}
+
+func TestDeleteStudyHistory(t *testing.T) {
+	db := setupTestDB(t)
+	defer db.Close()
+	handler := NewStudyHistoryHandler(db)
+
+	// 初期データの挿入
+	_, _ = db.Exec("INSERT INTO study_logs (id, description, content, date, time) VALUES (1, 'To be deleted', 'Content', '2024-03-14', '10:00')")
+
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Params = []gin.Param{{Key: "id", Value: "1"}}
+
+	c.Request = httptest.NewRequest("DELETE", "/study-histories/1", nil)
+
+	handler.DeleteStudyHistory(c)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	// DBから消えているか確認
+	var count int
+	err := db.QueryRow("SELECT count(*) FROM study_logs WHERE id = 1").Scan(&count)
+	assert.NoError(t, err)
+	assert.Equal(t, 0, count)
+}
+
 func TestRateLimiter(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()

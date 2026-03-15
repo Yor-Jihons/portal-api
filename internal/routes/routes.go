@@ -25,9 +25,9 @@ func SetupRouter(db *sql.DB) *gin.Engine {
 	r.Use(cors.New(cors.Config{
 		AllowOrigins: []string{
 			"http://localhost:3000",
-			"https://*.vercel.app",
+			"https://your-site.vercel.app",
 		},
-		AllowMethods: []string{"GET", "POST", "OPTIONS"},
+		AllowMethods: []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
 		AllowHeaders: []string{
 			"Origin",
 			"Content-Type",
@@ -36,12 +36,15 @@ func SetupRouter(db *sql.DB) *gin.Engine {
 		MaxAge: 12 * time.Hour,
 	}))
 
+
 	// ルート設定
 	authGroup := r.Group("/study-histories")
 	authGroup.Use(middlewares.ApiKeyAuth())
 	{
 		authGroup.GET("", studyHandler.GetStudyHistories)
 		authGroup.POST("", studyHandler.CreateStudyHistory)
+		authGroup.PUT("/:id", studyHandler.UpdateStudyHistory)
+		authGroup.DELETE("/:id", studyHandler.DeleteStudyHistory)
 	}
 
 	return r

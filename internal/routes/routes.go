@@ -37,13 +37,19 @@ func SetupRouter(db *sql.DB) *gin.Engine {
 	}))
 
 	// ルート設定
-	authGroup := r.Group("/study-histories")
-	authGroup.Use(middlewares.ApiKeyAuth())
+	authGroup1 := r.Group("/study-histories")
+	authGroup1.Use(middlewares.ApiKeyAuth())
 	{
-		authGroup.GET("", studyHandler.GetStudyHistories)
-		authGroup.POST("", studyHandler.CreateStudyHistory)
-		authGroup.PUT("/:id", studyHandler.UpdateStudyHistory)
-		authGroup.DELETE("/:id", studyHandler.DeleteStudyHistory)
+		authGroup1.GET("", studyHandler.GetStudyHistories)
+		authGroup1.POST("", studyHandler.CreateStudyHistory)
+		authGroup1.PUT("/:id", studyHandler.UpdateStudyHistory)
+		authGroup1.DELETE("/:id", studyHandler.DeleteStudyHistory)
+	}
+
+	authGroup2 := r.Group("/ping")
+	authGroup2.Use(middlewares.ApiKeyAuth())
+	{
+		authGroup2.GET("", studyHandler.GetPing)
 	}
 
 	return r

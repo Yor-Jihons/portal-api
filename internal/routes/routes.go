@@ -46,6 +46,7 @@ func SetupRouter(db *sql.DB) *gin.Engine {
 		authGroup1.DELETE("/:id", studyHandler.DeleteStudyHistory)
 	}
 
+	// ルート設定(コールドスタート対策)
 	authGroup2 := r.Group("/ping")
 	authGroup2.Use(middlewares.ApiKeyAuth())
 	{

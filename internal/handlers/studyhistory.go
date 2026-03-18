@@ -23,7 +23,7 @@ func NewStudyHistoryHandler(db *sql.DB) *StudyHistoryHandler {
 // GETメソッド: 全履歴取得
 func (h *StudyHistoryHandler) GetStudyHistories(c *gin.Context) {
 	query := `
-		SELECT s.id, s.description, s.content, s.date, s.time, 
+		SELECT s.id, s.description, s.content, strftime('%Y-%m-%d', s.date) as date, s.time, 
 		    GROUP_CONCAT(c.category_name, ',') as categories
 		FROM study_logs s
 		LEFT JOIN study_log_categories r ON s.id = r.study_log_id

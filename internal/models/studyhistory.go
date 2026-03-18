@@ -6,7 +6,7 @@ type StudyHistory struct {
 	Content     string   `json:"content" binding:"required"`
 	Categories  []string `json:"categories"`
 	Date        string   `json:"date" binding:"required,datetime=2006-01-02"`
-	Time        string   `json:"time" binding:"required,datetime=15:04"`
+	Time        int      `json:"time" binding:"required,min=1"`
 }
 
 // StudyHistoryResponse GETで返す全体のレスポンス形式

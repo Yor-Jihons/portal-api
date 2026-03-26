@@ -10,7 +10,8 @@ CREATE TABLE study_logs (
     description TEXT NOT NULL,
     content TEXT,
     date DATE NOT NULL DEFAULT (CURRENT_DATE),
-    time INTEGER NOT NULL DEFAULT 1
+    time INTEGER NOT NULL,
+    ref TEXT
 );
 
 -- 3. 中間テーブル (多対多の紐付け)

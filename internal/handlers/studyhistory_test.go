@@ -31,7 +31,8 @@ func setupTestDB(t *testing.T) *sql.DB {
 		description TEXT NOT NULL,
 		content TEXT,
 		date DATE NOT NULL DEFAULT (CURRENT_DATE),
-		time INTEGER NOT NULL
+		time INTEGER NOT NULL,
+		ref TEXT
 	);
 	CREATE TABLE study_log_categories (
 		study_log_id INTEGER REFERENCES study_logs(id) ON DELETE CASCADE,
@@ -51,7 +52,7 @@ func TestGetStudyHistories(t *testing.T) {
 	db := setupTestDB(t)
 	defer db.Close()
 
-	_, _ = db.Exec("INSERT INTO study_logs (id, description, content, date, time) VALUES (1, 'Test Title', 'Test Content', '2024-03-14', 60)")
+	_, _ = db.Exec("INSERT INTO study_logs (id, description, content, date, time, ref) VALUES (1, 'Test Title', 'Test Content', '2024-03-14', 60, 'https://example.com')")
 	_, _ = db.Exec("INSERT INTO categories (id, category_name) VALUES (1, 'go')")
 	_, _ = db.Exec("INSERT INTO study_log_categories (study_log_id, category_id) VALUES (1, 1)")
 
@@ -76,7 +77,7 @@ func TestCreateStudyHistory_Validation(t *testing.T) {
 		body     string
 		wantCode int
 	}{
-		{"Valid", `{"description": "New Study", "content": "Learning Tests", "date": "2024-03-14", "time": 60, "categories": ["go"]}`, http.StatusCreated},
+		{"Valid", `{"description": "New Study", "content": "Learning Tests", "ref": "https://example.com", "date": "2024-03-14", "time": 60, "categories": ["go"]}`, http.StatusCreated},
 		{"Invalid Date Format", `{"description": "New Study", "content": "Learning Tests", "date": "2024/03/14", "time": 60}`, http.StatusBadRequest},
 		{"Invalid Time Type", `{"description": "New Study", "content": "Learning Tests", "date": "2024-03-14", "time": "10:00"}`, http.StatusBadRequest},
 		{"Time Too Small", `{"description": "New Study", "content": "Learning Tests", "date": "2024-03-14", "time": 0}`, http.StatusBadRequest},
@@ -106,7 +107,7 @@ func TestCreateStudyHistory_Sanitize(t *testing.T) {
 	c, _ := gin.CreateTestContext(w)
 
 	// HTMLタグを含むボディ
-	body := `{"description": "<b>Bold Title</b>", "content": "<script>alert(1)</script>Content", "date": "2024-03-14", "time": 60}`
+	body := `{"description": "<b>Bold Title</b>", "content": "<script>alert(1)</script>Content", "ref": "<i>Ref</i>", "date": "2024-03-14", "time": 60}`
 	c.Request = httptest.NewRequest("POST", "/study-histories", strings.NewReader(body))
 	c.Request.Header.Set("Content-Type", "application/json")
 
@@ -118,11 +119,12 @@ func TestCreateStudyHistory_Sanitize(t *testing.T) {
 	assert.Equal(t, http.StatusCreated, w.Code)
 
 	// DBの値を確認（タグが消えていること）
-	var desc, content string
-	err := db.QueryRow("SELECT description, content FROM study_logs LIMIT 1").Scan(&desc, &content)
+	var desc, content, ref string
+	err := db.QueryRow("SELECT description, content, ref FROM study_logs LIMIT 1").Scan(&desc, &content, &ref)
 	assert.NoError(t, err)
 	assert.Equal(t, "Bold Title", desc)
 	assert.Equal(t, "Content", content)
+	assert.Equal(t, "Ref", ref)
 }
 
 func TestCreateStudyHistory_CategoryNormalization(t *testing.T) {
@@ -135,7 +137,7 @@ func TestCreateStudyHistory_CategoryNormalization(t *testing.T) {
 	c, _ := gin.CreateTestContext(w)
 
 	// 表記ゆれのあるカテゴリ
-	body := `{"description": "Study", "content": "Content", "date": "2024-03-14", "time": 60, "categories": ["  Go  ", "GO", "go"]}`
+	body := `{"description": "Study", "content": "Content", "ref": "ref", "date": "2024-03-14", "time": 60, "categories": ["  Go  ", "GO", "go"]}`
 	c.Request = httptest.NewRequest("POST", "/study-histories", strings.NewReader(body))
 	c.Request.Header.Set("Content-Type", "application/json")
 
@@ -164,7 +166,7 @@ func TestUpdateStudyHistory(t *testing.T) {
 	handler := NewStudyHistoryHandler(db)
 
 	// 初期データの挿入
-	_, _ = db.Exec("INSERT INTO study_logs (id, description, content, date, time) VALUES (1, 'Old Title', 'Old Content', '2024-03-14', 60)")
+	_, _ = db.Exec("INSERT INTO study_logs (id, description, content, date, time, ref) VALUES (1, 'Old Title', 'Old Content', '2024-03-14', 60, 'old-ref')")
 	_, _ = db.Exec("INSERT INTO categories (id, category_name) VALUES (1, 'old-cat')")
 	_, _ = db.Exec("INSERT INTO study_log_categories (study_log_id, category_id) VALUES (1, 1)")
 
@@ -174,7 +176,7 @@ func TestUpdateStudyHistory(t *testing.T) {
 	c.Params = []gin.Param{{Key: "id", Value: "1"}}
 
 	// 更新用ボディ
-	body := `{"description": "New Title", "content": "New Content", "date": "2024-03-15", "time": 90, "categories": ["new-cat"]}`
+	body := `{"description": "New Title", "content": "New Content", "ref": "new-ref", "date": "2024-03-15", "time": 90, "categories": ["new-cat"]}`
 	c.Request = httptest.NewRequest("PUT", "/study-histories/1", strings.NewReader(body))
 	c.Request.Header.Set("Content-Type", "application/json")
 
@@ -183,11 +185,12 @@ func TestUpdateStudyHistory(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code)
 
 	// DBの値が更新されているか確認
-	var desc, content, date string
+	var desc, content, ref, date string
 	var timeVal int
-	err := db.QueryRow("SELECT description, content, date, time FROM study_logs WHERE id = 1").Scan(&desc, &content, &date, &timeVal)
+	err := db.QueryRow("SELECT description, content, date, time, ref FROM study_logs WHERE id = 1").Scan(&desc, &content, &date, &timeVal, &ref)
 	assert.NoError(t, err)
 	assert.Equal(t, "New Title", desc)
+	assert.Equal(t, "new-ref", ref)
 	// SQLite の DATE 型は環境やドライバによって形式が異なる場合があるため、接頭辞でチェック
 	assert.True(t, strings.HasPrefix(date, "2024-03-15"), "Expected date to start with 2024-03-15, got %s", date)
 	assert.Equal(t, 90, timeVal)
@@ -205,7 +208,7 @@ func TestDeleteStudyHistory(t *testing.T) {
 	handler := NewStudyHistoryHandler(db)
 
 	// 初期データの挿入
-	_, _ = db.Exec("INSERT INTO study_logs (id, description, content, date, time) VALUES (1, 'To be deleted', 'Content', '2024-03-14', 60)")
+	_, _ = db.Exec("INSERT INTO study_logs (id, description, content, date, time, ref) VALUES (1, 'To be deleted', 'Content', '2024-03-14', 60, 'ref')")
 
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()

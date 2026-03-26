@@ -29,7 +29,8 @@ func setupTestDB(t *testing.T) *sql.DB {
 		description TEXT NOT NULL,
 		content TEXT,
 		date DATE NOT NULL DEFAULT (CURRENT_DATE),
-		time TEXT NOT NULL
+		time INTEGER NOT NULL,
+		ref TEXT
 	);
 	CREATE TABLE study_log_categories (
 		study_log_id INTEGER REFERENCES study_logs(id) ON DELETE CASCADE,
@@ -70,7 +71,7 @@ func TestFullRouteIntegration(t *testing.T) {
 			name:           "Ping with valid key",
 			method:         "GET",
 			path:           "/ping",
-			apiKey:         testKey,
+			apiKey: testKey,
 			expectedStatus: http.StatusOK,
 		},
 		{
@@ -129,7 +130,7 @@ func TestFullRouteIntegration(t *testing.T) {
 	// データの書き込みテスト（一貫性の確認）
 	t.Run("Create History Integration", func(t *testing.T) {
 		w := httptest.NewRecorder()
-		body := `{"description": "Integration Test", "content": "Running full integration test", "date": "2024-03-14", "time": "12:00", "categories": ["test"]}`
+		body := `{"description": "Integration Test", "content": "Running full integration test", "ref": "https://example.com", "date": "2024-03-14", "time": 60, "categories": ["test"]}`
 		req, _ := http.NewRequest("POST", "/study-histories", strings.NewReader(body))
 		req.RemoteAddr = "1.2.3.9:1234"
 		req.Header.Set("Content-Type", "application/json")

@@ -23,7 +23,7 @@ func NewStudyHistoryHandler(db *sql.DB) *StudyHistoryHandler {
 // GETメソッド: 全履歴取得
 func (h *StudyHistoryHandler) GetStudyHistories(c *gin.Context) {
 	query := `
-		SELECT s.id, s.description, s.content, strftime('%Y-%m-%d', s.date) as date, s.time, 
+		SELECT s.id, s.description, s.content, strftime('%Y-%m-%d', s.date) as date, s.time, s.ref, 
 		    GROUP_CONCAT(c.category_name, ',') as categories
 		FROM study_logs s
 		LEFT JOIN study_log_categories r ON s.id = r.study_log_id
@@ -44,12 +44,19 @@ func (h *StudyHistoryHandler) GetStudyHistories(c *gin.Context) {
 	for rows.Next() {
 		var h_data models.StudyHistory
 		var categoryStr sql.NullString
+		var ref sql.NullString
 
-		err := rows.Scan(&h_data.ID, &h_data.Description, &h_data.Content, &h_data.Date, &h_data.Time, &categoryStr)
+		err := rows.Scan(&h_data.ID, &h_data.Description, &h_data.Content, &h_data.Date, &h_data.Time, &ref, &categoryStr)
 		if err != nil {
 			slog.Error("Failed to scan history", "error", err)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal Server Error 2"})
 			return
+		}
+
+		if ref.Valid {
+			h_data.Ref = ref.String
+		} else {
+			h_data.Ref = ""
 		}
 
 		if categoryStr.Valid && categoryStr.String != "" {
@@ -80,6 +87,7 @@ func (h *StudyHistoryHandler) CreateStudyHistory(c *gin.Context) {
 	p := bluemonday.StrictPolicy()
 	input.Description = p.Sanitize(input.Description)
 	input.Content = p.Sanitize(input.Content)
+	input.Ref = p.Sanitize(input.Ref)
 
 	tx, err := h.DB.Begin()
 	if err != nil {
@@ -88,9 +96,9 @@ func (h *StudyHistoryHandler) CreateStudyHistory(c *gin.Context) {
 		return
 	}
 
-	query := `INSERT INTO study_logs (description, content, date, time) VALUES (?, ?, ?, ?) RETURNING id`
+	query := `INSERT INTO study_logs (description, content, date, time, ref) VALUES (?, ?, ?, ?, ?) RETURNING id`
 	var logID int
-	err = tx.QueryRow(query, input.Description, input.Content, input.Date, input.Time).Scan(&logID)
+	err = tx.QueryRow(query, input.Description, input.Content, input.Date, input.Time, input.Ref).Scan(&logID)
 	if err != nil {
 		tx.Rollback()
 		slog.Error("Failed to insert log", "error", err, "description", input.Description)
@@ -129,6 +137,7 @@ func (h *StudyHistoryHandler) UpdateStudyHistory(c *gin.Context) {
 	p := bluemonday.StrictPolicy()
 	input.Description = p.Sanitize(input.Description)
 	input.Content = p.Sanitize(input.Content)
+	input.Ref = p.Sanitize(input.Ref)
 
 	tx, err := h.DB.Begin()
 	if err != nil {
@@ -137,8 +146,8 @@ func (h *StudyHistoryHandler) UpdateStudyHistory(c *gin.Context) {
 		return
 	}
 
-	query := `UPDATE study_logs SET description = ?, content = ?, date = ?, time = ? WHERE id = ?`
-	result, err := tx.Exec(query, input.Description, input.Content, input.Date, input.Time, id)
+	query := `UPDATE study_logs SET description = ?, content = ?, date = ?, time = ?, ref = ? WHERE id = ?`
+	result, err := tx.Exec(query, input.Description, input.Content, input.Date, input.Time, input.Ref, id)
 	if err != nil {
 		tx.Rollback()
 		slog.Error("Failed to update log", "id", id, "error", err)

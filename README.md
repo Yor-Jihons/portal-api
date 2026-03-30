@@ -4,7 +4,16 @@
 
 このプロジェクトはGo言語でWeb APIを開発するものです。
 
-### 存在するAPI
+## 技術スタック
+
+* 言語: Go言語
+* フレームワーク: Gin
+* PaaS: Render.com
+* Database: Turso
+* Security: bluemonday, API Key Auth, Rate Limiting
+* Test: testify, httptest
+
+## 存在するAPI
 
 * 学習記録API
 

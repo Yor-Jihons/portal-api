@@ -10,7 +10,7 @@ import (
 func ApiKeyAuth() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// ヘッダーからキーを取得
-		key := c.GetHeader("X-API-KEY")
+		key := c.GetHeader("x-api-key")
 		expectedKey := os.Getenv("API_KEY")
 
 		// キーが一致しない場合は 401 Unauthorized を返して終了
